@@ -4,7 +4,7 @@
   "description": "Cordova Media Capture Plugin",
   "types": "./types/index.d.ts",
   "cordova": {
-    "id": "cordova-plugin-media-capture",
+    "id": "cordova-plugin-media-capture-mp4video",
     "platforms": [
       "android",
       "ios",
@@ -12,11 +12,17 @@
       "browser"
     ]
   },
-  "repository": "github:apache/cordova-plugin-media-capture",
-  "bugs": "https://github.com/apache/cordova-plugin-media-capture/issues",
+  "repository": "github:ctayl/cordova-plugin-media-capture",
+  "bugs": "https://github.com/ctayl/cordova-plugin-media-capture/issues",
   "keywords": [
     "cordova",
     "media",
+    "mp4 video",
+    "mp4 video capture",
+    "mpeg",
+    "mpeg video capture",
+    "remoorejr",
+    "alpha software",
     "capture",
     "ecosystem:cordova",
     "cordova-android",
@@ -27,7 +33,7 @@
     "test": "npm run lint",
     "lint": "eslint ."
   },
-  "author": "Apache Software Foundation",
+  "author": "Apache Software Foundation / remoorejr",
   "license": "Apache-2.0",
   "engines": {
     "cordovaDependencies": {

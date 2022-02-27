@@ -1,5 +1,5 @@
 ---
-title: Media Capture
+title: Media Capture With MP4 Video Capture for Android / iOS
 description: Capture audio, video, and images.
 ---
 <!--
@@ -27,6 +27,8 @@ description: Capture audio, video, and images.
 
 This plugin provides access to the device's audio, image, and video capture capabilities.
 
+This plugin has been modified to return an mpeg encoded mp4 file when video is captured from from Android or iOS device. 
+
 __WARNING__: Collection and use of images, video, or
 audio from the device's camera or microphone raises important privacy
 issues.  Your app's privacy policy should discuss how the app uses
@@ -53,7 +55,7 @@ Although in the global scope, it is not available until after the `deviceready` 
 
 ## Installation
 
-    cordova plugin add cordova-plugin-media-capture
+    cordova plugin add cordova-plugin-media-capture-mp4video
 
 ## Supported Platforms
 
@@ -142,6 +144,22 @@ code.
     navigator.device.capture.captureAudio(captureSuccess, captureError, {limit:2});
 
 ### iOS Quirks
+
+Since iOS 10 it's mandatory to add a `NSCameraUsageDescription`, `NSMicrophoneUsageDescription` and `NSPhotoLibraryUsageDescription` in the info.plist.
+
+* `NSCameraUsageDescription` describes the reason that the app accesses the user’s camera.
+* `NSMicrophoneUsageDescription` describes the reason that the app accesses the user’s microphone.
+* `NSPhotoLibraryUsageDescription` describes the reason the app accesses the user's photo library.
+
+When the system prompts the user to allow access, this string is displayed as part of the dialog box.
+
+These strings have been hard coded with the following strings to allow the plugin to be used by PhoneGap Build as well as the Cordova CLI:
+
+* `NSCameraUsageDescription:` This app requires access to the camera to take photos.
+* `NSMicrophoneUsageDescription:` This app requires access to the microphone to record audio. 
+* `NSPhotoLibraryUsageDescription:` This app requires access to the photo library to display images.
+
+-
 
 - iOS does not have a default audio recording application, so a simple user interface is provided.
 
@@ -459,7 +477,7 @@ video or image capture.
 The MIME types should adhere to [RFC2046](http://www.ietf.org/rfc/rfc2046.txt).  Examples:
 
 - `video/3gpp`
-- `video/quicktime`
+- `video/mpeg`
 - `image/jpeg`
 - `audio/amr`
 - `audio/wav`
