@@ -15,27 +15,6 @@
        KIND, either express or implied.  See the License for the
        specific language governing permissions and limitations
        under the License.
-
-       Note: This is a modified version of the stock cordova media-capture plugin for Android
-       Revisions by @remoorejr
-
-       Last revised: 08-03-2016
-
-       REM Notes:
-
-       The goal was to have the MediaStore intent always generate and return a mpeg encoded video file in a mp4 wrapper so that the video
-       can be played back on Android, iOS, OSX and Windows devices and computers.
-
-       Through significant testing, the only resolution was to simply rename the 3gp file to an mp4 file.
-       Most Android devices will generate an MPEG encoded file in a mp4 wrapper by default.
-       In that case, nothing is changed.
-       However, a few Android devices (like the Nexus 9) always generate a MPEG encoded file in a 3gp wrapper. This plugin simply reanmes
-       the .3gp file to a .mp4 file and sets the mime type accordingly. There is very little difference between the 3gp file and the mp4 file and
-       all players and browsers tested are able to play these mp4 files. That includes iOS devices, OSX, Windows, etc. 
-
-       To have full control, over the Android video recording process, this plugin would have to be completely re-written and it would not 
-       use the MediaStore intent.
-
 */
 package org.apache.cordova.mediacapture;
 
@@ -46,11 +25,13 @@ import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Date;
 
 import android.content.ActivityNotFoundException;
 import android.os.Build;
+import android.os.Bundle;
 
 import org.apache.cordova.file.FileUtils;
 import org.apache.cordova.file.LocalFilesystemURL;
@@ -78,12 +59,13 @@ import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.support.v4.content.FileProvider;
+import org.apache.cordova.BuildHelper;
 
 public class Capture extends CordovaPlugin {
 
     private static final String VIDEO_3GPP = "video/3gpp";
     private static final String VIDEO_MP4 = "video/mp4";
-
     private static final String AUDIO_3GPP = "audio/3gpp";
     private static final String[] AUDIO_TYPES = new String[] {"audio/3gpp", "audio/aac", "audio/amr", "audio/wav"};
     private static final String IMAGE_JPEG = "image/jpeg";
@@ -91,7 +73,7 @@ public class Capture extends CordovaPlugin {
     private static final int CAPTURE_AUDIO = 0;     // Constant for capture audio
     private static final int CAPTURE_IMAGE = 1;     // Constant for capture image
     private static final int CAPTURE_VIDEO = 2;     // Constant for capture video
-    private static final String LOG_TAG = "CaptureMP4Video";
+    private static final String LOG_TAG = "Capture";
 
     private static final int CAPTURE_INTERNAL_ERR = 0;
 //    private static final int CAPTURE_APPLICATION_BUSY = 1;
@@ -100,18 +82,17 @@ public class Capture extends CordovaPlugin {
     private static final int CAPTURE_PERMISSION_DENIED = 4;
     private static final int CAPTURE_NOT_SUPPORTED = 20;
 
-    private static final String[] storagePermissions = new String[]{
-        Manifest.permission.READ_EXTERNAL_STORAGE,
-        Manifest.permission.WRITE_EXTERNAL_STORAGE
-    };
-
-
     private boolean cameraPermissionInManifest;     // Whether or not the CAMERA permission is declared in AndroidManifest.xml
 
     private final PendingRequests pendingRequests = new PendingRequests();
 
     private int numPics;                            // Number of pictures before capture activity
-    private Uri imageUri;
+    private String audioAbsolutePath;
+    private String imageAbsolutePath;
+    private String videoAbsolutePath;
+
+    private String applicationId;
+
 
 //    public void setContext(Context mCtx)
 //    {
@@ -150,6 +131,9 @@ public class Capture extends CordovaPlugin {
 
     @Override
     public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
+        this.applicationId = (String) BuildHelper.getBuildConfigValue(this.cordova.getActivity(), "APPLICATION_ID");
+        this.applicationId = preferences.getString("applicationId", this.applicationId);
+
         if (action.equals("getFormatData")) {
             JSONObject obj = getFormatData(args.getString(0), args.getString(1));
             callbackContext.success(obj);
@@ -252,46 +236,32 @@ public class Capture extends CordovaPlugin {
         return obj;
     }
 
-    private boolean isMissingPermissions(Request req, ArrayList<String> permissions) {
-        ArrayList<String> missingPermissions = new ArrayList<>();
-        for (String permission: permissions) {
-            if (!PermissionHelper.hasPermission(this, permission)) {
-                missingPermissions.add(permission);
-            }
-        }
-
-        boolean isMissingPermissions = missingPermissions.size() > 0;
-        if (isMissingPermissions) {
-            String[] missing = missingPermissions.toArray(new String[missingPermissions.size()]);
-            PermissionHelper.requestPermissions(this, req.requestCode, missing);
-        }
-        return isMissingPermissions;
-    }
-
-    private boolean isMissingStoragePermissions(Request req) {
-        return isMissingPermissions(req, new ArrayList<>(Arrays.asList(storagePermissions)));
-    }
-
-    private boolean isMissingCameraPermissions(Request req) {
-        ArrayList<String> cameraPermissions = new ArrayList<>(Arrays.asList(storagePermissions));
-        if (cameraPermissionInManifest) {
-            cameraPermissions.add(Manifest.permission.CAMERA);
-        }
-        return isMissingPermissions(req, cameraPermissions);
-    }
-
     /**
      * Sets up an intent to capture audio.  Result handled by onActivityResult()
      */
     private void captureAudio(Request req) {
-        if (isMissingStoragePermissions(req)) return;
+      if (!PermissionHelper.hasPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)) {
+          PermissionHelper.requestPermission(this, req.requestCode, Manifest.permission.READ_EXTERNAL_STORAGE);
+      } else {
+          try {
+              Intent intent = new Intent(android.provider.MediaStore.Audio.Media.RECORD_SOUND_ACTION);
 
-        try {
-            Intent intent = new Intent(android.provider.MediaStore.Audio.Media.RECORD_SOUND_ACTION);
-            this.cordova.startActivityForResult((CordovaPlugin) this, intent, req.requestCode);
-        } catch (ActivityNotFoundException ex) {
-            pendingRequests.resolveWithFailure(req, createErrorObject(CAPTURE_NOT_SUPPORTED, "No Activity found to handle Audio Capture."));
-        }
+              String timeStamp = new SimpleDateFormat("yyyyMMddHHmmssSSS").format(new Date());
+              String fileName = "AUDIO_" + timeStamp + ".wav";
+              File audio = new File(getTempDirectoryPath(), fileName);
+
+              Uri audioUri = FileProvider.getUriForFile(this.cordova.getActivity(),
+                      this.applicationId + ".cordova.plugin.mediacapture.provider",
+                      audio);
+              this.audioAbsolutePath = audio.getAbsolutePath();
+              intent.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, audioUri);
+              intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+              LOG.d(LOG_TAG, "Recording an audio and saving to: " + this.audioAbsolutePath);
+              this.cordova.startActivityForResult((CordovaPlugin) this, intent, req.requestCode);
+          } catch (ActivityNotFoundException ex) {
+              pendingRequests.resolveWithFailure(req, createErrorObject(CAPTURE_NOT_SUPPORTED, "No Activity found to handle Audio Capture."));
+          }
+      }
     }
 
     private String getTempDirectoryPath() {
@@ -309,22 +279,40 @@ public class Capture extends CordovaPlugin {
      * Sets up an intent to capture images.  Result handled by onActivityResult()
      */
     private void captureImage(Request req) {
-        if (isMissingCameraPermissions(req)) return;
+        boolean needExternalStoragePermission =
+            !PermissionHelper.hasPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE);
 
-        // Save the number of images currently on disk for later
-        this.numPics = queryImgDB(whichContentStore()).getCount();
+        boolean needCameraPermission = cameraPermissionInManifest &&
+            !PermissionHelper.hasPermission(this, Manifest.permission.CAMERA);
 
-        Intent intent = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
+        if (needExternalStoragePermission || needCameraPermission) {
+            if (needExternalStoragePermission && needCameraPermission) {
+                PermissionHelper.requestPermissions(this, req.requestCode, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.CAMERA});
+            } else if (needExternalStoragePermission) {
+                PermissionHelper.requestPermission(this, req.requestCode, Manifest.permission.WRITE_EXTERNAL_STORAGE);
+            } else {
+                PermissionHelper.requestPermission(this, req.requestCode, Manifest.permission.CAMERA);
+            }
+        } else {
+            // Save the number of images currently on disk for later
+            this.numPics = queryImgDB(whichContentStore()).getCount();
 
-        ContentResolver contentResolver = this.cordova.getActivity().getContentResolver();
-        ContentValues cv = new ContentValues();
-        cv.put(MediaStore.Images.Media.MIME_TYPE, IMAGE_JPEG);
-        imageUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv);
-        LOG.d(LOG_TAG, "Taking a picture and saving to: " + imageUri.toString());
+            Intent intent = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
 
-        intent.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, imageUri);
+            String timeStamp = new SimpleDateFormat("yyyyMMddHHmmssSSS").format(new Date());
+            String fileName = "IMG_" + timeStamp + ".jpg";
+            File image = new File(getTempDirectoryPath(), fileName);
 
-        this.cordova.startActivityForResult((CordovaPlugin) this, intent, req.requestCode);
+            Uri imageUri = FileProvider.getUriForFile(this.cordova.getActivity(),
+                    this.applicationId + ".cordova.plugin.mediacapture.provider",
+                    image);
+            this.imageAbsolutePath = image.getAbsolutePath();
+            intent.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, imageUri);
+            intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            LOG.d(LOG_TAG, "Taking a picture and saving to: " + this.imageAbsolutePath);
+
+            this.cordova.startActivityForResult((CordovaPlugin) this, intent, req.requestCode);
+        }
     }
 
     private static void createWritableFile(File file) throws IOException {
@@ -336,15 +324,27 @@ public class Capture extends CordovaPlugin {
      * Sets up an intent to capture video.  Result handled by onActivityResult()
      */
     private void captureVideo(Request req) {
-        if (isMissingCameraPermissions(req)) return;
+        if(cameraPermissionInManifest && !PermissionHelper.hasPermission(this, Manifest.permission.CAMERA)) {
+            PermissionHelper.requestPermission(this, req.requestCode, Manifest.permission.CAMERA);
+        } else {
+            Intent intent = new Intent(android.provider.MediaStore.ACTION_VIDEO_CAPTURE);
+            String timeStamp = new SimpleDateFormat("yyyyMMddHHmmssSSS").format(new Date());
+            String fileName = "VID_" + timeStamp + ".mp4";
+            File movie = new File(getTempDirectoryPath(), fileName);
 
-        Intent intent = new Intent(android.provider.MediaStore.ACTION_VIDEO_CAPTURE);
+            Uri videoUri = FileProvider.getUriForFile(this.cordova.getActivity(),
+                    this.applicationId + ".cordova.plugin.mediacapture.provider",
+                    movie);
+            this.videoAbsolutePath = movie.getAbsolutePath();
+            intent.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, videoUri);
+            intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
 
-        if(Build.VERSION.SDK_INT > 7){
-            intent.putExtra("android.intent.extra.durationLimit", req.duration);
-            intent.putExtra("android.intent.extra.videoQuality", req.quality);
+            if(Build.VERSION.SDK_INT > 7){
+                intent.putExtra("android.intent.extra.durationLimit", req.duration);
+                intent.putExtra("android.intent.extra.videoQuality", req.quality);
+            }
+            this.cordova.startActivityForResult((CordovaPlugin) this, intent, req.requestCode);
         }
-        this.cordova.startActivityForResult((CordovaPlugin) this, intent, req.requestCode);
     }
 
     /**
@@ -406,10 +406,8 @@ public class Capture extends CordovaPlugin {
 
 
     public void onAudioActivityResult(Request req, Intent intent) {
-        // Get the uri of the audio clip
-        Uri data = intent.getData();
-        // create a file object from the uri
-        req.results.put(createMediaFile(data));
+        // create a file object from the audio absolute path
+        req.results.put(createMediaFileWithAbsolutePath(this.audioAbsolutePath));
 
         if (req.results.length() >= req.limit) {
             // Send Uri back to JavaScript for listening to audio
@@ -422,9 +420,7 @@ public class Capture extends CordovaPlugin {
 
     public void onImageActivityResult(Request req) {
         // Add image to results
-        req.results.put(createMediaFile(imageUri));
-
-        checkForDuplicateImage();
+        req.results.put(createMediaFileWithAbsolutePath(this.imageAbsolutePath));
 
         if (req.results.length() >= req.limit) {
             // Send Uri back to JavaScript for viewing image
@@ -435,41 +431,19 @@ public class Capture extends CordovaPlugin {
         }
     }
 
-
     public void onVideoActivityResult(Request req, Intent intent) {
-        Uri data = null;
-
-        if (intent != null){
-            // Get the uri of the video clip
-            data = intent.getData();
-
-            Log.i(LOG_TAG, "Video captured: " + data);
-        }
-
-
-        // This is in the stock plugin, why?
-       /*
-        if ( data == null) {
-            File movie = new File(getTempDirectoryPath(), "capturedVideo.mp4");
-            data = Uri.fromFile(movie);
-
-        }
-        */
-
-        // create a file object from the uri
-        if (data == null) {
+        if(this.videoAbsolutePath != null) {
+            req.results.put(createMediaFileWithAbsolutePath(this.videoAbsolutePath));
+        } else {
             pendingRequests.resolveWithFailure(req, createErrorObject(CAPTURE_NO_MEDIA_FILES, "Error: data is null"));
         }
-        else {
-            req.results.put(createMediaFile(data));
 
-            if (req.results.length() >= req.limit) {
-                // Send Uri back to JavaScript for viewing video
-                pendingRequests.resolveWithSuccess(req);
-            } else {
-                // still need to capture more video clips
-                captureVideo(req);
-            }
+        if (req.results.length() >= req.limit) {
+            // Send Uri back to JavaScript for viewing video
+            pendingRequests.resolveWithSuccess(req);
+        } else {
+            // still need to capture more videos
+            captureVideo(req);
         }
     }
 
@@ -482,7 +456,6 @@ public class Capture extends CordovaPlugin {
      */
     private JSONObject createMediaFile(Uri data) {
         File fp = webView.getResourceApi().mapUriToFile(data);
-
         JSONObject obj = new JSONObject();
 
         Class webViewClass = webView.getClass();
@@ -503,6 +476,7 @@ public class Capture extends CordovaPlugin {
             }
         }
         FileUtils filePlugin = (FileUtils) pm.getPlugin("File");
+        LocalFilesystemURL url = filePlugin.filesystemURLforLocalPath(fp.getAbsolutePath());
 
         try {
             // File properties
@@ -511,52 +485,77 @@ public class Capture extends CordovaPlugin {
             if (url != null) {
                 obj.put("localURL", url.toString());
             }
-        }
+            // Because of an issue with MimeTypeMap.getMimeTypeFromExtension() all .3gpp files
+            // are reported as video/3gpp. I'm doing this hacky check of the URI to see if it
+            // is stored in the audio or video content store.
+            if (fp.getAbsoluteFile().toString().endsWith(".3gp") || fp.getAbsoluteFile().toString().endsWith(".3gpp")) {
+                if (data.toString().contains("/audio/")) {
+                    obj.put("type", AUDIO_3GPP);
+                } else {
+                    obj.put("type", VIDEO_3GPP);
+                }
+            } else {
+                obj.put("type", FileHelper.getMimeType(Uri.fromFile(fp), cordova));
+            }
 
-        if (fileRenamed) {
-            url = filePlugin.filesystemURLforLocalPath(thisFile);
-        } else {
-            url = filePlugin.filesystemURLforLocalPath(fp.getAbsolutePath());
+            obj.put("lastModifiedDate", fp.lastModified());
+            obj.put("size", fp.length());
+        } catch (JSONException e) {
+            // this will never happen
+            e.printStackTrace();
         }
+        return obj;
+    }
+
+    /**
+     * Creates a JSONObject that represents a File from the Uri
+     *
+     * @param path the absolute path saved in FileProvider of the audio/image/video
+     * @return a JSONObject that represents a File
+     * @throws IOException
+     */
+    private JSONObject createMediaFileWithAbsolutePath(String path) {
+        File fp = new File(path);
+        JSONObject obj = new JSONObject();
+
+        Class webViewClass = webView.getClass();
+        PluginManager pm = null;
+        try {
+            Method gpm = webViewClass.getMethod("getPluginManager");
+            pm = (PluginManager) gpm.invoke(webView);
+        } catch (NoSuchMethodException e) {
+        } catch (IllegalAccessException e) {
+        } catch (InvocationTargetException e) {
+        }
+        if (pm == null) {
+            try {
+                Field pmf = webViewClass.getField("pluginManager");
+                pm = (PluginManager)pmf.get(webView);
+            } catch (NoSuchFieldException e) {
+            } catch (IllegalAccessException e) {
+            }
+        }
+        FileUtils filePlugin = (FileUtils) pm.getPlugin("File");
+        LocalFilesystemURL url = filePlugin.filesystemURLforLocalPath(fp.getAbsolutePath());
 
         try {
-
-            if (fileRenamed){
-                // File properties
-                obj.put("name", fp2.getName());
-                obj.put("fullPath", fp2.toURI().toString());
-                if (url != null) {
-                    obj.put("localURL", url.toString());
-                }
-
-                obj.put("type", FileHelper.getMimeType(Uri.fromFile(fp2), cordova));
-                obj.put("lastModifiedDate", fp2.lastModified());
-                obj.put("size", fp2.length());
-
-            } else {
-                // File properties
-                obj.put("name", fp.getName());
-                obj.put("fullPath", fp.toURI().toString());
-                if (url != null) {
-                    obj.put("localURL", url.toString());
-                }
-                // Because of an issue with MimeTypeMap.getMimeTypeFromExtension() all .3gpp files
-                // are reported as video/3gpp. I'm doing this hacky check of the URI to see if it
-                // is stored in the audio or video content store.
-
-                if (fp.getAbsoluteFile().toString().endsWith(".3gp") || fp.getAbsoluteFile().toString().endsWith(".3gpp")) {
-                    if (data.toString().contains("/audio/")) {
-                        obj.put("type", AUDIO_3GPP);
-                    } else {
-                        obj.put("type", VIDEO_3GPP);
-                    }
-                } else {
-                    obj.put("type", FileHelper.getMimeType(Uri.fromFile(fp), cordova));
-                }
-
-                obj.put("lastModifiedDate", fp.lastModified());
-                obj.put("size", fp.length());
+            // File properties
+            obj.put("name", fp.getName());
+            obj.put("fullPath", Uri.fromFile(fp));
+            if (url != null) {
+                obj.put("localURL", url.toString());
             }
+            // Because of an issue with MimeTypeMap.getMimeTypeFromExtension() all .3gpp files
+            // are reported as video/3gpp. I'm doing this hacky check of the URI to see if it
+            // is stored in the audio or video content store.
+            if (fp.getAbsoluteFile().toString().endsWith(".3gp") || fp.getAbsoluteFile().toString().endsWith(".3gpp")) {
+                obj.put("type", VIDEO_3GPP);
+            } else {
+                obj.put("type", FileHelper.getMimeType(Uri.fromFile(fp), cordova));
+            }
+
+            obj.put("lastModifiedDate", fp.lastModified());
+            obj.put("size", fp.length());
         } catch (JSONException e) {
             // this will never happen
             e.printStackTrace();
@@ -652,5 +651,13 @@ public class Capture extends CordovaPlugin {
                 pendingRequests.resolveWithFailure(req, createErrorObject(CAPTURE_PERMISSION_DENIED, "Permission denied."));
             }
         }
+    }
+
+    public Bundle onSaveInstanceState() {
+        return pendingRequests.toBundle();
+    }
+
+    public void onRestoreStateForActivityResult(Bundle state, CallbackContext callbackContext) {
+        pendingRequests.setLastSavedState(state, callbackContext);
     }
 }
