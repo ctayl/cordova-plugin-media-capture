@@ -1,10 +1,10 @@
 {
   "name": "cordova-plugin-media-capture",
-  "version": "3.0.4-dev",
+  "version": "3.0.4-bf-1.0",
   "description": "Cordova Media Capture Plugin",
   "types": "./types/index.d.ts",
   "cordova": {
-    "id": "cordova-plugin-media-capture-mp4video",
+    "id": "cordova-plugin-media-capture",
     "platforms": [
       "android",
       "ios",
@@ -12,8 +12,8 @@
       "browser"
     ]
   },
-  "repository": "github:ctayl/cordova-plugin-media-capture",
-  "bugs": "https://github.com/ctayl/cordova-plugin-media-capture/issues",
+  "repository": "github:buildfire/cordova-plugin-media-capture",
+  "bugs": "https://github.com/buildfire/cordova-plugin-media-capture/issues",
   "keywords": [
     "cordova",
     "media",
