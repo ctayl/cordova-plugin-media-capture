@@ -21,10 +21,10 @@
 <plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
 xmlns:android="http://schemas.android.com/apk/res/android"
            id="cordova-plugin-media-capture"
-      version="3.0.4-dev">
+      version="3.0.4-bf-1.0">
     <name>Capture</name>
 
-    <name>cordova-plugin-media-capture-mp4video</name>
+    <name>cordova-plugin-media-capture</name>
 
     <description>Cordova Media Capture Plugin modified to generate a mp4 video file for iOS and Android</description>
     <license>Apache 2.0</license>
