@@ -34,6 +34,9 @@ function wrapMediaFiles (pluginResult) {
         mediaFile.type = pluginResult[i].type;
         mediaFile.lastModifiedDate = pluginResult[i].lastModifiedDate;
         mediaFile.size = pluginResult[i].size;
+        mediaFile.duration = pluginResult[i].duration;
+        mediaFile.trimmed = pluginResult[i].trimmed;
+        mediaFile.warning = pluginResult[i].warning || false;
         mediaFiles.push(mediaFile);
     }
     return mediaFiles;

@@ -48,8 +48,6 @@ import org.json.JSONObject;
 
 import android.Manifest;
 import android.app.Activity;
-import android.content.ContentResolver;
-import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
@@ -90,6 +88,7 @@ public class Capture extends CordovaPlugin {
     private String audioAbsolutePath;
     private String imageAbsolutePath;
     private String videoAbsolutePath;
+    private Bundle extras;
 
     private String applicationId;
 
@@ -338,11 +337,9 @@ public class Capture extends CordovaPlugin {
             this.videoAbsolutePath = movie.getAbsolutePath();
             intent.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, videoUri);
             intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-
-            if(Build.VERSION.SDK_INT > 7){
-                intent.putExtra("android.intent.extra.durationLimit", req.duration);
-                intent.putExtra("android.intent.extra.videoQuality", req.quality);
-            }
+            intent.putExtra(MediaStore.EXTRA_DURATION_LIMIT, req.duration);
+            intent.putExtra(MediaStore.EXTRA_VIDEO_QUALITY, req.quality);
+            extras = intent.getExtras();
             this.cordova.startActivityForResult((CordovaPlugin) this, intent, req.requestCode);
         }
     }
@@ -433,7 +430,35 @@ public class Capture extends CordovaPlugin {
 
     public void onVideoActivityResult(Request req, Intent intent) {
         if(this.videoAbsolutePath != null) {
-            req.results.put(createMediaFileWithAbsolutePath(this.videoAbsolutePath));
+            String trimmedVideoAbsolutePath = this.videoAbsolutePath.replace(".mp4", "-trimmed.mp4");
+
+            File source = new File(this.videoAbsolutePath);
+            File output = new File(trimmedVideoAbsolutePath);
+
+            int durationLimit = 0;
+            int sourceDuration = 0;
+            JSONObject result;
+
+            durationLimit = extras.getInt(MediaStore.EXTRA_DURATION_LIMIT, 0);
+            extras = null;
+
+            try {
+                sourceDuration = TrimVideoUtils.getDuration(source);
+
+                if (durationLimit > 0 && sourceDuration > durationLimit) {
+                    int start = 0;
+                    int end = durationLimit * 1000;
+
+                    TrimVideoUtils.startTrim(source, output, start, end);
+                    result = createVideoFileWithAbsolutePath(output.getAbsolutePath(), durationLimit, true, "");
+                    cleanup(source);
+                } else {
+                    result = createVideoFileWithAbsolutePath(source.getAbsolutePath(), sourceDuration, false, "");
+                }
+            } catch (IOException e) {
+                 result = createVideoFileWithAbsolutePath(source.getAbsolutePath(), sourceDuration, false, "TRIM_FAILED");
+            }
+            req.results.put(result);
         } else {
             pendingRequests.resolveWithFailure(req, createErrorObject(CAPTURE_NO_MEDIA_FILES, "Error: data is null"));
         }
@@ -447,6 +472,28 @@ public class Capture extends CordovaPlugin {
         }
     }
 
+    private void cleanup(File file) {
+        try {
+            if (file.exists() && file.canWrite()) {
+                file.delete();
+            }
+        } catch (SecurityException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private JSONObject createVideoFileWithAbsolutePath(String path, long duration, Boolean trimmed, String warning) {
+        JSONObject mediaFile = createMediaFileWithAbsolutePath(path);
+        try {
+            mediaFile.put("duration", duration);
+            mediaFile.put("trimmed", trimmed);
+            mediaFile.put("warning", warning);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        } finally {
+            return mediaFile;
+        }
+    }
     /**
      * Creates a JSONObject that represents a File from the Uri
      *

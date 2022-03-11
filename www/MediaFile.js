@@ -32,7 +32,7 @@ var CaptureError = require('./CaptureError');
  * lastModifiedDate {Date} last modified date
  * size {Number} size of the file in bytes
  */
-var MediaFile = function (name, localURL, type, lastModifiedDate, size) {
+var MediaFile = function (name, localURL, type, lastModifiedDate, size, duration, trimmed, warning) {
     MediaFile.__super__.constructor.apply(this, arguments);
 };
 
