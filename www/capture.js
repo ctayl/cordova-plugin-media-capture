@@ -44,6 +44,7 @@ function Capture () {
     this.supportedAudioModes = [];
     this.supportedImageModes = [];
     this.supportedVideoModes = [];
+    this.mp4 = true;
 }
 
 /**

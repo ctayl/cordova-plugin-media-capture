@@ -21,14 +21,16 @@
 <plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
 xmlns:android="http://schemas.android.com/apk/res/android"
            id="cordova-plugin-media-capture"
-      version="3.0.4-dev">
+      version="3.0.4-bf-1.0">
     <name>Capture</name>
 
-    <description>Cordova Media Capture Plugin</description>
+    <name>cordova-plugin-media-capture</name>
+
+    <description>Cordova Media Capture Plugin modified to generate a mp4 video file for iOS and Android</description>
     <license>Apache 2.0</license>
     <keywords>cordova,media,capture</keywords>
-    <repo>https://github.com/apache/cordova-plugin-media-capture</repo>
-    <issue>https://github.com/apache/cordova-plugin-media-capture/issues</issue>
+    <repo>https://github.com/buildfire/cordova-plugin-media-capture</repo>
+    <issue>https://github.com/buildfire/cordova-plugin-media-capture/issues</issue>
 
     <engines>
         <engine name="cordova-android" version=">=6.3.0" />
@@ -76,9 +78,20 @@ xmlns:android="http://schemas.android.com/apk/res/android"
             </feature>
         </config-file>
 
+        <config-file target="AndroidManifest.xml" parent="application">
+            <provider
+                android:name="org.apache.cordova.mediacapture.FileProvider"
+                android:authorities="${applicationId}.cordova.plugin.mediacapture.provider"
+                android:exported="false"
+                android:grantUriPermissions="true" >
+                <meta-data
+                    android:name="android.support.FILE_PROVIDER_PATHS"
+                    android:resource="@xml/mediacapture_provider_paths"/>
+            </provider>
+        </config-file>
+
         <config-file target="AndroidManifest.xml" parent="/*">
             <uses-permission android:name="android.permission.RECORD_AUDIO" />
-            <uses-permission android:name="android.permission.RECORD_VIDEO"/>
             <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
             <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
         </config-file>
@@ -86,10 +99,16 @@ xmlns:android="http://schemas.android.com/apk/res/android"
         <source-file src="src/android/Capture.java" target-dir="src/org/apache/cordova/mediacapture" />
         <source-file src="src/android/FileHelper.java" target-dir="src/org/apache/cordova/mediacapture" />
         <source-file src="src/android/PendingRequests.java" target-dir="src/org/apache/cordova/mediacapture" />
+        <source-file src="src/android/FileProvider.java" target-dir="src/org/apache/cordova/mediacapture" />
+        <source-file src="src/android/TrimVideoUtils.java" target-dir="src/org/apache/cordova/mediacapture" />
+        <source-file src="src/android/xml/mediacapture_provider_paths.xml" target-dir="res/xml" />
 
         <js-module src="www/android/init.js" name="init">
             <runs />
         </js-module>
+        <preference name="ANDROID_SUPPORT_V4_VERSION" default="27.+"/>
+        <framework src="com.android.support:support-v4:$ANDROID_SUPPORT_V4_VERSION"/>
+        <framework src="com.googlecode.mp4parser:isoparser:1.1.18" />
     </platform>
 
     <!-- ios -->
@@ -105,6 +124,44 @@ xmlns:android="http://schemas.android.com/apk/res/android"
 
         <framework src="CoreGraphics.framework" />
         <framework src="MobileCoreServices.framework" />
+
+        <config-file target="*-Info.plist" parent="NSCameraUsageDescription">
+            <string>This app requires access to the camera to take photos.</string>
+        </config-file>
+
+        <config-file target="*-Info.plist" parent="NSMicrophoneUsageDescription">
+            <string>This app requires access to the microphone to record audio.</string>
+        </config-file>
+
+        <config-file target="*-Info.plist" parent="NSPhotoLibraryUsageDescription">
+            <string>This app requires access to the photo library to display images.</string>
+        </config-file>
+    </platform>
+
+    <!-- blackberry10 -->
+    <platform name="blackberry10">
+        <source-file src="src/blackberry10/index.js" target-dir="Capture" />
+        <config-file target="www/config.xml" parent="/widget">
+            <feature name="media-capture" value="Capture"/>
+        </config-file>
+        <config-file target="www/config.xml" parent="/widget/rim:permissions">
+          <rim:permit>access_shared</rim:permit>
+        </config-file>
+      </platform>
+
+    <!-- wp7 -->
+    <platform name="wp7">
+        <config-file target="config.xml" parent="/*">
+            <feature name="Capture">
+                <param name="wp-package" value="Capture"/>
+            </feature>
+        </config-file>
+
+        <config-file target="Properties/WMAppManifest.xml" parent="/Deployment/App/Capabilities">
+            <Capability Name="ID_CAP_MEDIALIB"/>
+            <Capability Name="ID_CAP_MICROPHONE"/>
+            <Capability Name="ID_CAP_ISV_CAMERA" />
+        </config-file>
 
     </platform>
 
