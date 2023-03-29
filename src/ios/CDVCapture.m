@@ -568,9 +568,9 @@
 		NSArray *compatiblePresets = [AVAssetExportSession exportPresetsCompatibleWithAsset:avAsset];
 
 		// Check if video is supported for conversion or not
-		if ([compatiblePresets containsObject:AVAssetExportPresetMediumQuality]) {
+		if ([compatiblePresets containsObject:AVAssetExportPresetHighestQuality]) {
 			// Create Export session
-			AVAssetExportSession *exportSession = [[AVAssetExportSession alloc]initWithAsset:avAsset presetName:AVAssetExportPresetMediumQuality];
+			AVAssetExportSession *exportSession = [[AVAssetExportSession alloc]initWithAsset:avAsset presetName:AVAssetExportPresetHighestQuality];
 
 			// Creating temp path to save the converted video
 			
