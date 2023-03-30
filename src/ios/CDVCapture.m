@@ -279,14 +279,14 @@
         if ([pickerController respondsToSelector:@selector(cameraCaptureMode)]) {
             pickerController.cameraCaptureMode = UIImagePickerControllerCameraCaptureModeVideo;
             switch ((int) (quality ? [quality doubleValue]: 1)) {
-                case 0:
+                case -1:
                     pickerController.videoQuality = UIImagePickerControllerQualityTypeLow;
                     break;
-                case 1:
+                case 0:
                 default:
                     pickerController.videoQuality = UIImagePickerControllerQualityTypeMedium;
                     break;
-                case 2:
+                case 1:
                     pickerController.videoQuality = UIImagePickerControllerQualityTypeHigh;
                     break;
             }
